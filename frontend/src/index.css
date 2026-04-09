@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.card { @apply bg-white rounded-xl shadow p-4; }
+.btn { @apply bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700; }
+.input { @apply border rounded-lg px-3 py-2 w-full; }
