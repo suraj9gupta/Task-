@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  CLIENT
+}
+
+enum SubscriptionPlan {
+  FREE
+  PREMIUM
+}
+
+model Country {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique @db.VarChar(3)
+  name      String   @unique @db.VarChar(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  states    State[]
+
+  @@map("country")
+}
+
+model State {
+  id          Int        @id @default(autoincrement())
+  countryId   Int
+  name        String     @db.VarChar(120)
+  code        String?    @db.VarChar(10)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  country     Country    @relation(fields: [countryId], references: [id], onDelete: Restrict)
+  districts   District[]
+  villages    Village[]
+
+  @@unique([countryId, name])
+  @@index([countryId])
+  @@index([name])
+  @@map("states")
+}
+
+model District {
+  id           Int           @id @default(autoincrement())
+  stateId      Int
+  name         String        @db.VarChar(120)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  state        State         @relation(fields: [stateId], references: [id], onDelete: Restrict)
+  subDistricts SubDistrict[]
+  villages     Village[]
+
+  @@unique([stateId, name])
+  @@index([stateId])
+  @@index([name])
+  @@map("districts")
+}
+
+model SubDistrict {
+  id         Int       @id @default(autoincrement())
+  districtId Int
+  name       String    @db.VarChar(120)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  district   District  @relation(fields: [districtId], references: [id], onDelete: Restrict)
+  villages   Village[]
+
+  @@unique([districtId, name])
+  @@index([districtId])
+  @@index([name])
+  @@map("sub_districts")
+}
+
+model Village {
+  id            BigInt      @id @default(autoincrement())
+  countryId     Int
+  stateId       Int
+  districtId    Int
+  subDistrictId Int
+  name          String      @db.VarChar(160)
+  normalized    String      @db.VarChar(160)
+  postalCode    String?     @db.VarChar(12)
+  latitude      Decimal?    @db.Decimal(10, 7)
+  longitude     Decimal?    @db.Decimal(10, 7)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  country       Country     @relation(fields: [countryId], references: [id], onDelete: Restrict)
+  state         State       @relation(fields: [stateId], references: [id], onDelete: Restrict)
+  district      District    @relation(fields: [districtId], references: [id], onDelete: Restrict)
+  subDistrict   SubDistrict @relation(fields: [subDistrictId], references: [id], onDelete: Restrict)
+  apiLogs       ApiLog[]
+
+  @@unique([subDistrictId, normalized])
+  @@index([stateId])
+  @@index([districtId])
+  @@index([subDistrictId])
+  @@index([normalized])
+  @@index([name])
+  @@map("villages")
+}
+
+model User {
+  id             String         @id @default(cuid())
+  email          String         @unique @db.VarChar(180)
+  name           String         @db.VarChar(120)
+  passwordHash   String
+  role           UserRole       @default(CLIENT)
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  apiKeys        ApiKey[]
+  subscription   Subscription?
+  apiLogs        ApiLog[]
+
+  @@index([role])
+  @@map("users")
+}
+
+model ApiKey {
+  id           String      @id @default(cuid())
+  userId       String
+  keyPrefix    String      @db.VarChar(16)
+  keyHash      String
+  secretHash   String
+  name         String      @db.VarChar(80)
+  isRevoked    Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  revokedAt    DateTime?
+  lastUsedAt   DateTime?
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs         ApiLog[]
+
+  @@index([userId])
+  @@index([keyPrefix])
+  @@index([isRevoked])
+  @@map("api_keys")
+}
+
+model Subscription {
+  id             String           @id @default(cuid())
+  userId         String           @unique
+  plan           SubscriptionPlan @default(FREE)
+  requestsPerDay Int              @default(5000)
+  startedAt      DateTime         @default(now())
+  expiresAt      DateTime?
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([plan])
+  @@map("subscriptions")
+}
+
+model ApiLog {
+  id          BigInt    @id @default(autoincrement())
+  userId      String?
+  apiKeyId    String?
+  endpoint    String    @db.VarChar(255)
+  method      String    @db.VarChar(10)
+  statusCode  Int
+  durationMs  Int
+  query       Json?
+  villageId   BigInt?
+  createdAt   DateTime  @default(now())
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  apiKey      ApiKey?   @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  village     Village?  @relation(fields: [villageId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([apiKeyId])
+  @@index([endpoint])
+  @@map("api_logs")
+}
